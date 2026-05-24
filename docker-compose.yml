@@ -67,5 +67,24 @@ services:
     depends_on:
       - elasticsearch
 
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.10.2
+    volumes:
+      - ./logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
+    ports:
+      - "5044:5044"
+    depends_on:
+      - elasticsearch
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.10.2
+    user: root
+    volumes:
+      - ./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - logstash
+
 volumes:
   pgdata:
