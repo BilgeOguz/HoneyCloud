@@ -81,7 +81,7 @@ cd HoneyCloud
 cp .env.example .env
 
 # Install testing tools 
-pip install pytes
+pip install pytest
 
 # Start all services (PostgreSQL, API, Sensor, PostgreSQL, Redis, ELK stack)
 docker-compose up --build -d
