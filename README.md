@@ -1,89 +1,224 @@
-# HoneyManager MVP (Minimum Viable Product)
+[README (1).md](https://github.com/user-attachments/files/28196228/README.1.md)
+# HoneyCloud MVP
 
-**Course:** CENG433 - Cloud Computing  
-**Team Members:** Sina Erdem Özdemir - 21050151019, Bilge Oğuz - 21050151023    
-**Demo Video:** [Insert Unlisted YouTube Link Here]  
-**GitHub Repository:** https://github.com/SinaErdem/HoneyManager-MVP/tree/main/HoneyManager-MVP
+**Course:** CENG433 - Cloud Computing
+**Team Members:** Sina Erdem Özdemir - 21050151019, Bilge Oğuz - 21050151023
+**Demo Video:** [Insert Unlisted YouTube Link Here]
+**GitHub Repository:** https://github.com/SinaErdem/HoneyCloud-MVP/tree/main/HoneyCloud-MVP
 
-This project is a simplified, cloud-native prototype (MVP) of the distributed honeypot management system, HoneyManager, developed for a Cloud Computing course assignment. It is designed in strict adherence to the **12-Factor App** principles.
-
-## 1. Architectural Design and 12-Factor App Compliance
-
-The project is designed according to the microservices architecture to ensure high availability and scalability in a cloud environment. The system consists of three main components:
-
-1.  **Stateless API (Flask + SQLAlchemy):** A central REST API that receives incoming cyber attack logs and writes them to the database. **(Statelessness Principle)**
-2.  **Sensor (Python Script):** An independent component that asynchronously POSTs mock honeypot data (e.g., SSH Brute Force attempts) to the central API at regular intervals.
-3.  **Database (PostgreSQL):** The central log storage unit.
-
-### How 12-Factor App Principles Were Applied
-*   **I. Codebase:** All services are managed within a single codebase but in isolated subdirectories (`api/`, `sensor/`).
-*   **III. Config:** No sensitive data (database passwords, API endpoints, etc.) is hard-coded within the source code. All configuration is injected from the outside via *Environment Variables* (`.env`).
-*   **VI. Processes:** The API application (Flask/Gunicorn) is designed to be completely *stateless*. It does not store any data on the local file system; all persistent data is stored on the backend PostgreSQL (Backing Service).
-*   **VII. Port Binding:** The Flask application exposes its own port (5000) as an independent web service.
-*   **XI. Logs:** Application logs are treated as event streams and printed to the standard output (stdout/stderr).
+A cloud-native distributed honeypot management system built as an MVP for a Cloud Computing course assignment. The system simulates vulnerable services, attracts malicious network traffic, and ingests/stores attack logs in real time. Designed in strict adherence to the **12-Factor App** methodology.
 
 ---
 
-## 2. Local Environment Setup
+## Architecture Overview
 
-The project is configured with `docker-compose` for local testing.
+The system consists of three main services:
+
+1. **API** (`api/`) — Stateless Flask REST API that receives attack logs and writes them to PostgreSQL. Exposes a Prometheus `/metrics` endpoint and serves cached responses via Redis.
+2. **Sensor** (`sensor/`) — Independent Python process that simulates honeypot nodes by POSTing mock attack events to the API at regular intervals.
+3. **Database** — PostgreSQL, running locally via Docker or on AWS RDS in production.
+
+```
+[Sensor] --POST /api/logs--> [Flask API] --> [PostgreSQL (RDS)]
+                                   |
+                              [Redis Cache]
+                              [Prometheus /metrics]
+                              [Filebeat --> Logstash --> Elasticsearch --> Kibana]
+```
+
+---
+
+## Technology Stack
+
+| Component  | Technology                              |
+|------------|-----------------------------------------|
+| Language   | Python 3.11, Flask 3.0, Gunicorn        |
+| Database   | PostgreSQL 15 — AWS RDS in production   |
+| Deployment | Docker, AWS ECS Fargate, ALB            |
+| CI/CD      | GitHub Actions                          |
+| Caching    | Redis 7 — AWS ElastiCache in production |
+| Monitoring | Prometheus + prometheus-flask-exporter  |
+| Logging    | ELK Stack (Filebeat → Logstash → Elasticsearch → Kibana) |
+
+---
+
+## 12-Factor App Compliance
+
+| # | Factor | Implementation |
+|---|--------|----------------|
+| I | Codebase | Single Git repo, services isolated in `api/` and `sensor/` |
+| II | Dependencies | Pinned in `requirements.txt` for each service |
+| III | Config | All config via environment variables — no hardcoded secrets |
+| IV | Backing services | PostgreSQL and Redis treated as attached resources via URLs |
+| V | Build / release / run | Docker builds the image; GitHub Actions automates the release |
+| VI | Processes | Flask is fully stateless — all state lives in PostgreSQL |
+| VII | Port binding | Gunicorn binds the port; no external web server required |
+| VIII | Concurrency | ECS Fargate scales task count horizontally |
+| IX | Disposability | Gunicorn handles fast startup; SIGTERM triggers graceful shutdown |
+| X | Dev/prod parity | `docker-compose` uses the same `postgres:15` image as RDS |
+| XI | Logs | JSON-structured logs streamed to stdout, collected by Filebeat |
+| XII | Admin processes | `db.create_all()` runs as a one-off task at container startup |
+
+---
+
+## Local Setup
+
+### Prerequisites
+
+- Docker and Docker Compose
+- Git
+
+### Run locally
 
 ```bash
-# To spin up the services:
+# Clone the repo
+git clone https://github.com/SinaErdem/HoneyCloud-MVP.git
+cd HoneyCloud-MVP
+
+# Copy environment config
+cp .env.example .env
+
+# Start all services (API, Sensor, PostgreSQL, Redis, ELK stack)
 docker-compose up --build -d
 
-# To verify the API is running:
-# http://localhost:5000/api/health
+# Check API health
+curl http://localhost:5000/api/health
 
-# To view the collected logs:
-# http://localhost:5000/api/logs
+# View recent attack logs
+curl http://localhost:5000/api/logs
 
-# To monitor the sensor logs:
+# View Prometheus metrics
+curl http://localhost:5000/metrics
+
+# Open Kibana dashboard
+open http://localhost:5601
+```
+
+### Monitor sensor activity
+
+```bash
 docker-compose logs -f sensor
 ```
 
 ---
 
-## 3. AWS Deployment Guide
+## Project Structure
 
-Deploying this architecture on AWS (Amazon Web Services) using fully-managed services involves the following steps:
-
-### Step 1: Database Infrastructure (AWS RDS)
-**Amazon RDS for PostgreSQL** will be used as the persistent data storage unit for our stateless architecture.
-1.  Navigate to the RDS service via the AWS Console.
-2.  Create a new PostgreSQL instance (e.g., `db.t3.micro`).
-3.  Note down the **Endpoint URL**, username, and password of the created RDS instance. This information will be provided to our API service as Environment Variables.
-
-### Step 2: Storing Container Images (AWS ECR)
-The Docker images for our API and Sensor services must be built and uploaded to the AWS Elastic Container Registry.
-```bash
-# Login to ECR (requires AWS CLI)
-aws ecr get-login-password --region <region> | docker login --username AWS --password-stdin <aws_account_id>.dkr.ecr.<region>.amazonaws.com
-
-# Create repositories for API and Sensor in ECR
-aws ecr create-repository --repository-name honeymanager-api
-aws ecr create-repository --repository-name honeymanager-sensor
-
-# Tag and push the images to ECR
-docker build -t honeymanager-api ./api
-docker tag honeymanager-api:latest <aws_account_id>.dkr.ecr.<region>.amazonaws.com/honeymanager-api:latest
-docker push <aws_account_id>.dkr.ecr.<region>.amazonaws.com/honeymanager-api:latest
-
-# Repeat the same build and push process for the Sensor.
+```
+HoneyCloud-MVP/
+├── api/
+│   ├── app.py              # Flask application factory
+│   ├── models.py           # SQLAlchemy Alert model
+│   ├── requirements.txt    # API dependencies
+│   ├── Dockerfile
+│   └── tests/
+│       └── test_health.py  # Pytest test suite
+├── sensor/
+│   ├── sensor.py           # Mock honeypot data generator
+│   ├── requirements.txt
+│   └── Dockerfile
+├── .github/
+│   └── workflows/
+│       └── ci.yml          # GitHub Actions CI/CD pipeline
+├── filebeat.yml            # Filebeat config — ships logs to Logstash
+├── logstash.conf           # Logstash pipeline config
+├── docker-compose.yml      # Full local environment
+└── .env.example            # Environment variable template
 ```
 
-### Step 3: Running the Applications (AWS ECS - Fargate)
-To avoid server management (EC2), the applications will be run on **AWS ECS (Elastic Container Service)** using the serverless compute engine, **AWS Fargate**.
-1.  **Creating a Task Definition:**
-    *   **API Task:** Select the API image pushed to ECR. Enter the RDS details in the Environment Variables section: `DATABASE_URL = postgresql://<user>:<password>@<rds_endpoint>:5432/postgres`. Set Port Mapping to 5000.
-    *   **Sensor Task:** Select the Sensor image pushed to ECR. Enter the API's address in the Environment Variables section: `API_URL = http://<api_load_balancer_dns>:5000/api/logs`.
-2.  **Creating a Cluster and Service:**
-    *   Create a Cluster on ECS.
-    *   Launch the API Task as a Service and place an **Application Load Balancer (ALB)** in front of it for external access.
-    *   Launch the Sensor Task as a separate Service within the same Cluster.
+---
 
-*Alternative (Simpler Deployment): To quickly spin up just the API, you can also use the **AWS App Runner** service directly from a GitHub repo or ECR. App Runner automatically handles the Load Balancer and SSL certification.*
+## Environment Variables
 
-### Security and Networking
-*   **Security Groups:** The RDS instance should be locked down to only allow traffic on port 5432 coming from the ECS Cluster or the VPC where the API resides. External access to the database must be completely blocked.
-*   Only port 80 (HTTP) or 443 (HTTPS) of the Application Load Balancer should be open to the outside world.
+| Variable        | Description                          | Example                                           |
+|-----------------|--------------------------------------|---------------------------------------------------|
+| `DATABASE_URL`  | PostgreSQL connection string         | `postgresql://postgres:pass@db:5432/honeycloud` |
+| `REDIS_URL`     | Redis connection string              | `redis://redis:6379/0`                            |
+| `API_URL`       | Sensor → API endpoint                | `http://api:5000/api/logs`                        |
+| `SLEEP_INTERVAL`| Seconds between sensor log posts     | `5`                                               |
+| `FLASK_ENV`     | Flask environment                    | `development` or `production`                     |
+
+---
+
+## API Endpoints
+
+| Method | Endpoint        | Description                        |
+|--------|-----------------|------------------------------------|
+| GET    | `/api/health`   | Health check — verifies DB connection |
+| POST   | `/api/logs`     | Ingest a new attack log            |
+| GET    | `/api/logs`     | Retrieve recent logs (cached 60s)  |
+| GET    | `/metrics`      | Prometheus metrics endpoint        |
+
+### POST `/api/logs` — required fields
+
+```json
+{
+  "severity": "high",
+  "honeypot_name": "Cowrie-Node-1",
+  "source_ip": "192.168.1.100",
+  "event_type": "SSH_Login_Failed",
+  "honeypot_type": "SSH",
+  "description": "Brute force attempt detected",
+  "raw_data": "{\"username\": \"root\", \"password\": \"1234\"}"
+}
+```
+
+---
+
+## CI/CD Pipeline
+
+GitHub Actions runs automatically on every push and pull request to `main`:
+
+1. **Test** — installs dependencies, runs `pytest` against the API
+2. **Build** — builds the Docker image to confirm it compiles cleanly
+
+Pipeline config: `.github/workflows/ci.yml`
+
+---
+
+## AWS Deployment Guide
+
+### Step 1 — Database (RDS)
+
+1. Create a PostgreSQL instance on AWS RDS (`db.t3.micro` is sufficient for MVP).
+2. Note the endpoint URL, username, and password.
+3. Restrict inbound traffic on port 5432 to the ECS VPC only.
+
+### Step 2 — Container Registry (ECR)
+
+```bash
+# Authenticate
+aws ecr get-login-password --region <region> | \
+  docker login --username AWS --password-stdin <account_id>.dkr.ecr.<region>.amazonaws.com
+
+# Create repos
+aws ecr create-repository --repository-name honeycloud-api
+aws ecr create-repository --repository-name honeycloud-sensor
+
+# Build, tag, and push API image
+docker build -t honeycloud-api ./api
+docker tag honeycloud-api:latest <account_id>.dkr.ecr.<region>.amazonaws.com/honeycloud-api:latest
+docker push <account_id>.dkr.ecr.<region>.amazonaws.com/honeycloud-api:latest
+
+# Repeat for sensor
+```
+
+### Step 3 — Deployment (ECS Fargate)
+
+1. Create an ECS Cluster.
+2. Create a **Task Definition** for the API:
+   - Set `DATABASE_URL` to the RDS endpoint.
+   - Set `REDIS_URL` to the ElastiCache endpoint.
+   - Map port 5000.
+3. Create a **Task Definition** for the Sensor:
+   - Set `API_URL` to the ALB DNS name.
+4. Launch both as ECS Services.
+5. Place an **Application Load Balancer** in front of the API service.
+6. Only expose port 80/443 on the ALB to the outside world.
+
+### Security
+
+- RDS: allow port 5432 from ECS VPC only — no public access.
+- ElastiCache: allow port 6379 from ECS VPC only.
+- ALB: expose port 80 (HTTP) or 443 (HTTPS) to the internet.
+- Store all secrets in **AWS Secrets Manager** or ECS task definition environment variables — never in source code.
