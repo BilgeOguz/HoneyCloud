@@ -13,7 +13,7 @@ handler.setFormatter(jsonlogger.JsonFormatter('%(asctime)s %(name)s %(levelname)
 logging.basicConfig(level=logging.INFO, handlers=[handler])
 
 #logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-#logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 cache = Cache()
 
