@@ -37,10 +37,8 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - FLASK_ENV=development
     depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - db
+      - redis
 
   sensor:
     build:
@@ -50,38 +48,6 @@ services:
       - SLEEP_INTERVAL=5
     depends_on:
       - api
-
-      elasticsearch:
-    image: elasticsearch:8.13.0
-    environment:
-      - discovery.type=single-node
-      - xpack.security.enabled=false
-    ports:
-      - "9200:9200"
-
-  logstash:
-    image: logstash:8.13.0
-    ports:
-      - "5044:5044"
-    volumes:
-      - ./logstash.conf:/usr/share/logstash/pipeline/logstash.conf
-
-  kibana:
-    image: kibana:8.13.0
-    ports:
-      - "5601:5601"
-    depends_on:
-      - elasticsearch
-
-  filebeat:
-    image: elastic/filebeat:8.13.0
-    user: root
-    volumes:
-      - ./filebeat.yml:/usr/share/filebeat/filebeat.yml
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    depends_on:
-      - logstash
 
 volumes:
   pgdata:
