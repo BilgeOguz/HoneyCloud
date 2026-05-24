@@ -74,13 +74,16 @@ The system consists of three main services:
 
 ```bash
 # Clone the repo
-git clone https://github.com/SinaErdem/HoneyCloud-MVP.git
-cd HoneyCloud-MVP
+git clone https://github.com/BilgeOguz/HoneyCloud.git
+cd HoneyCloud
 
 # Copy environment config
 cp .env.example .env
 
-# Start all services (API, Sensor, PostgreSQL, Redis, ELK stack)
+# Install testing tools 
+pip install pytes
+
+# Start all services (PostgreSQL, API, Sensor, PostgreSQL, Redis, ELK stack)
 docker-compose up --build -d
 
 # Check API health
