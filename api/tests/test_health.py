@@ -1,7 +1,7 @@
 import pytest
 from app import create_app
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def client():
     app = create_app()
     app.config['TESTING'] = True
