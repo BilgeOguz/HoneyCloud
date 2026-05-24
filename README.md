@@ -1,4 +1,4 @@
-[README (1).md](https://github.com/user-attachments/files/28196228/README.1.md)
+
 # HoneyCloud MVP
 
 **Course:** CENG433 - Cloud Computing
