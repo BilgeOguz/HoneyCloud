@@ -77,17 +77,28 @@ The system consists of three main services:
 git clone https://github.com/BilgeOguz/HoneyCloud.git
 cd HoneyCloud
 
-# Copy environment config
-cp .env.example .env
+# Environment config and activation
+python3 -m venv venv
+source venv/bin/activate
 
-# Install testing tools 
+# Install testing tools and requirements
+cd api
+pip install -r requirements.txt
 pip install pytest
+cd ..
+
+#Filebeat permissions part (Because of using WSL)
+sudo chown 0:0 filebeat.yml
 
 # Start all services (PostgreSQL, API, Sensor, PostgreSQL, Redis, ELK stack)
-docker-compose up --build -d
+docker compose up --build -d
 
 # Check API health
 curl http://localhost:5000/api/health
+
+# Log Index Creation
+curl -X GET "localhost:9200/_cat/indices?v"
+(Wait until you see honeymanager-logs-YYYY.MM.DD in the output list )
 
 # View recent attack logs
 curl http://localhost:5000/api/logs
